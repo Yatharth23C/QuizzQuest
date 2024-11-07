@@ -1,12 +1,13 @@
+
 'use client'
-import Landingpage from './components/landingapge'
+import Viewquestions from '../components/Viewquestions'
 import { SessionProvider } from 'next-auth/react'
 
 export default function (){
   return(<>
   
   <SessionProvider>
-    <Landingpage/>
+    <Viewquestions/>
   </SessionProvider>
   </>)
 }
