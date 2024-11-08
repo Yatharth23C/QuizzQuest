@@ -17,8 +17,18 @@
   .animate-fade-in-down {
     animation: fade-in-down 0.5s ease-out;
   }
-  .kidsbg{
-   
+  .mainbg{
+   background-image: url("../public/bg-image3.jpg");
+   background-size: cover;
+  }
+  .yatharth{
+    background-image: url('../public/mypfp.jpg');
+  }
+  .akshay{
+    background-image: url('../public/pfpakshay.jpg');
+  }
+  .shruti{
+    
   }
 
 

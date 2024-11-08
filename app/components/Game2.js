@@ -10,7 +10,7 @@ export default function Games() {
     const [questionops, setQuestionops] = useState([]);
     const [correctAnswer, setCorrectAnswer] = useState(null);
     const [start, setStart] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(5);
+    const [timeLeft, setTimeLeft] = useState(10);
     const [resultMessage, setResultMessage] = useState('');
     const [score, setScore] = useState(0);
     const [activeOption, setActiveOption] = useState(null);
@@ -18,11 +18,26 @@ export default function Games() {
     const router = useRouter();
     const animationRef = useRef(null);
 
+    const shownOptionsRef = useRef(new Set()); // Track shown options to ensure each is displayed at least once
+
     // Function to randomly display an option
     const showOption = () => {
         if (gameOver || !questionops.length) return;
 
-        const randomOption = Math.floor(Math.random() * questionops.length);
+        // Ensure each option is displayed at least once
+        let randomOption;
+        if (shownOptionsRef.current.size < questionops.length) {
+            // Select an option that hasn't been shown yet
+            const remainingOptions = questionops
+                .map((_, index) => index)
+                .filter(index => !shownOptionsRef.current.has(index));
+            randomOption = remainingOptions[Math.floor(Math.random() * remainingOptions.length)];
+            shownOptionsRef.current.add(randomOption);
+        } else {
+            // All options have been shown, so we can select any option at random
+            randomOption = Math.floor(Math.random() * questionops.length);
+        }
+
         const randomHole = Math.floor(Math.random() * holePositionsRef.current.length);
 
         setActiveOption(randomOption);
@@ -51,7 +66,7 @@ export default function Games() {
         ];
 
         const drawHoles = () => {
-            c.fillStyle = 'black';
+            c.fillStyle = '#1E1E1E';  // Dark gray for holes
             holePositionsRef.current.forEach(({ x, y }) => {
                 c.beginPath();
                 c.ellipse(x, y, 50, 30, 0, 0, Math.PI * 2);
@@ -63,12 +78,12 @@ export default function Games() {
             if (activeOption === null || activeHole === null) return;
             const { x, y } = holePositionsRef.current[activeHole];
 
-            c.fillStyle = 'red';
+            c.fillStyle = '#8A2BE2';  // Purple for active option
             c.beginPath();
             c.ellipse(x, y - 40, 50, 30, 0, 0, Math.PI * 2);
             c.fill();
 
-            c.fillStyle = 'white';
+            c.fillStyle = '#FFFF00';  // Yellow for text
             c.font = '20px Arial';
             c.textAlign = 'center';
             c.fillText(questionops[activeOption], x, y - 35);
@@ -81,7 +96,7 @@ export default function Games() {
             drawHoles();
             drawActiveOption();
 
-            c.fillStyle = 'black';
+            c.fillStyle = '#FFFFFF';  // White for score and timer text
             c.font = '20px Arial';
             c.fillText(`Time Left: ${timeLeft}s | Score: ${score}`, 20, 30);
 
@@ -185,10 +200,10 @@ export default function Games() {
     }, []);
 
     return (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
+        <div style={{ position: 'relative', display: 'inline-block', backgroundColor: '#222222' }}>
             <canvas
                 ref={canvasRef}
-                style={{ border: '1px solid black' }}
+                style={{ border: '1px solid #8A2BE2', boxShadow: '0px 0px 10px 3px rgba(138, 43, 226, 0.8)' }}
                 onClick={clickHandler}
             >
                 Your browser does not support the canvas element.
@@ -201,11 +216,12 @@ export default function Games() {
                             setGameOver(false);
                             setTimeLeft(10);
                             setResultMessage('');
+                            shownOptionsRef.current.clear(); // Reset shown options
                         }
                     }}
                     style={{
                         position: 'absolute', top: '80%', left: '50%', transform: 'translate(-50%, -50%)',
-                        padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none',
+                        padding: '10px 20px', backgroundColor: '#8A2BE2', color: 'white', border: 'none',
                         cursor: 'pointer', fontSize: '18px', borderRadius: '5px'
                     }}
                 >
@@ -214,11 +230,11 @@ export default function Games() {
             )}
             {gameOver && <div style={{
                 position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '36px', fontWeight: 'bold', color: 'red'
+                fontSize: '36px', fontWeight: 'bold', color: '#FF6347'  // Tomato red for game over
             }}>{resultMessage}</div>}
             {resultMessage && !gameOver && <div style={{
                 position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '24px', fontWeight: 'bold', color: 'green'
+                fontSize: '24px', fontWeight: 'bold', color: '#00FF00'  // Lime green for correct
             }}>{resultMessage}</div>}
         </div>
     );

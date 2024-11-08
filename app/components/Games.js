@@ -4,9 +4,8 @@ import { useRouter } from 'next/navigation';
 
 export default function Games() {
     const canvasRef = useRef(null);
-    const gravity = 0.1;
-    const slowdownDuration = 1000; // Duration for which the boxes slow down
-    const normalFallSpeed = 4; // Normal fall speed after slowing down
+    const slowdownDuration = 1000;
+    const normalFallSpeed = 4;
     const [gameOver, setGameOver] = useState(false);
     const [questionid, setQuestionid] = useState(null);
     const [questionops, setQuestionops] = useState([]);
@@ -19,7 +18,7 @@ export default function Games() {
     const objectsRef = useRef([]);
     const animationRef = useRef(null);
 
-    // Load question data from localStorage and set correct answer from API
+    // Load question data and correct answer
     useEffect(() => {
         const id = localStorage.getItem('current_Q_id');
         const ops = JSON.parse(localStorage.getItem('current_Q_ops'));
@@ -43,6 +42,9 @@ export default function Games() {
         };
 
         if (id) fetchCorrectAnswer();
+
+        const savedScore = localStorage.getItem('score');
+        if (savedScore) setScore(parseInt(savedScore, 10));
     }, []);
 
     class GameObject {
@@ -50,44 +52,39 @@ export default function Games() {
             this.c = c;
             this.canvas = canvas;
             this.position = { x, y };
-            this.velocity = { y: -6 }; // Initial velocity to make the box fly up
+            this.velocity = { y: -6 };
             this.width = 150;
             this.height = 150;
             this.slowdownEnd = null;
             this.optionText = optionText;
             this.realIndex = index + 1;
-            this.hasSlowedDown = false; // Flag to check if the box has slowed down
+            this.hasSlowedDown = false;
         }
 
         draw() {
-            this.c.fillStyle = 'red';
+            this.c.fillStyle = '#6A0DAD'; // Purple color for the box
             this.c.fillRect(this.position.x, this.position.y, this.width, this.height);
-            this.c.fillStyle = 'white';
+            this.c.fillStyle = '#FFD700'; // Yellow color for the text
             this.c.font = '20px Arial';
             this.c.textAlign = 'center';
             this.c.fillText(this.optionText, this.position.x + this.width / 2, this.position.y + this.height / 2);
         }
 
         update() {
-            // Apply slowdown if within the slowdown duration
             if (this.slowdownEnd && Date.now() < this.slowdownEnd) {
-                this.velocity.y = 0.8; // Slow speed during the slowdown phase
+                this.velocity.y = 0.8;
                 this.hasSlowedDown = true;
             } else if (this.hasSlowedDown) {
-                this.velocity.y = normalFallSpeed; // Normal fall speed after slowdown
+                this.velocity.y = normalFallSpeed;
             } else {
-                // If not slowed down, check if it should start slowing down
-                if (this.position.y <= innerHeight -600) { // Change this to the height you want to trigger slowdown
-                    this.slowdownEnd = Date.now() + slowdownDuration; // Set when to stop slowing down
+                if (this.position.y <= innerHeight - 600) {
+                    this.slowdownEnd = Date.now() + slowdownDuration;
                 }
             }
 
-            // Update position based on velocity
             this.position.y += this.velocity.y;
-
-            // Prevent going off the bottom of the canvas
             if (this.position.y > this.canvas.height) {
-                this.position.y = this.canvas.height; // Ensure it doesn't go off-screen
+                this.position.y = this.canvas.height;
             }
         }
 
@@ -98,37 +95,52 @@ export default function Games() {
     }
 
     useEffect(() => {
-        // Set up Game Objects
         const canvas = canvasRef.current;
         const c = canvas.getContext('2d');
         canvas.width = innerWidth;
         canvas.height = innerHeight;
 
         objectsRef.current = questionops.map((option, index) =>
-            new GameObject(c, canvas, 100 + index * 300, innerHeight + 200, option, index) // Start below the canvas
+            new GameObject(c, canvas, 100 + index * 300, innerHeight + 200, option, index)
         );
 
         const handleGameOver = () => {
             setGameOver(true);
             setStart(false);
             cancelAnimationFrame(animationRef.current);
+            router.push('/viewquestions');  // Redirect to /viewquestions after game over
         };
 
-        const clickHandler = (e) => {
+        const clickHandler = async (e) => {
             if (gameOver) return;
 
             const rect = canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            objectsRef.current.forEach((obj) => {
+            objectsRef.current.forEach(async (obj) => {
                 if (obj.isClicked(mouseX, mouseY)) {
                     if (obj.realIndex === correctAnswer) {
                         setResultMessage('Correct Answer!');
-                        setScore(prevScore => prevScore + 1);
+                        const newScore = score + 1;
+                        setScore(newScore);
+                        localStorage.setItem('score', newScore);
+
+                        await fetch('/api/auth/recordAnswer', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: localStorage.getItem('userEmail'),
+                                questionId: questionid,
+                                isCorrect: true,
+                            }),
+                        });
+
+                        // Redirect to /viewquestions after correct answer
+                        router.push('/viewquestions');
                     } else {
                         setResultMessage('Wrong Answer! Game Over');
-                        handleGameOver();
+                        handleGameOver();  // Game Over and redirect to /viewquestions
                     }
                 }
             });
@@ -140,9 +152,8 @@ export default function Games() {
             canvas.removeEventListener('click', clickHandler);
             cancelAnimationFrame(animationRef.current);
         };
-    }, [gameOver, questionops, correctAnswer]);
+    }, [gameOver, questionops, correctAnswer, score]);
 
-    // Animation Loop (runs independently of the timer)
     useEffect(() => {
         if (!start) return;
 
@@ -153,8 +164,7 @@ export default function Games() {
             if (gameOver) return;
 
             c.clearRect(0, 0, canvas.width, canvas.height);
-
-            c.fillStyle = 'black';
+            c.fillStyle = '#000000'; // Black background for canvas
             c.font = '20px Arial';
             c.fillText(`Time Left: ${timeLeft}s | Score: ${score}`, 20, 30);
 
@@ -169,9 +179,8 @@ export default function Games() {
         animate();
 
         return () => cancelAnimationFrame(animationRef.current);
-    }, [start, gameOver]);
+    }, [start, gameOver, score]);
 
-    // Countdown Timer (independent of animation)
     useEffect(() => {
         if (!start) return;
 
@@ -181,6 +190,7 @@ export default function Games() {
                     clearInterval(timer);
                     setGameOver(true);
                     setStart(false);
+                    router.push('/viewquestions');  // Redirect to /viewquestions when time runs out
                     return 0;
                 }
                 return prevTime - 1;
@@ -192,7 +202,7 @@ export default function Games() {
 
     return (
         <div style={{ position: 'relative', display: 'inline-block' }}>
-            <canvas ref={canvasRef} style={{ border: '1px solid black' }}>Your browser does not support the canvas element.</canvas>
+            <canvas ref={canvasRef} style={{ border: '1px solid #6A0DAD' }}>Your browser does not support the canvas element.</canvas>
             {!start && !gameOver && (
                 <button
                     onClick={() => {
@@ -205,7 +215,7 @@ export default function Games() {
                     }}
                     style={{
                         position: 'absolute', top: '80%', left: '50%', transform: 'translate(-50%, -50%)',
-                        padding: '10px 20px', backgroundColor: '#007BFF', color: 'white', border: 'none',
+                        padding: '10px 20px', backgroundColor: '#0000FF', color: 'white', border: 'none',
                         cursor: 'pointer', fontSize: '18px', borderRadius: '5px'
                     }}
                 >
@@ -214,11 +224,11 @@ export default function Games() {
             )}
             {gameOver && <div style={{
                 position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '36px', fontWeight: 'bold', color: 'red'
+                fontSize: '36px', fontWeight: 'bold', color: '#6A0DAD'
             }}>{resultMessage}</div>}
             {resultMessage && !gameOver && <div style={{
                 position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '24px', fontWeight: 'bold', color: 'green'
+                fontSize: '24px', fontWeight: 'bold', color: '#FFD700'
             }}>{resultMessage}</div>}
         </div>
     );
