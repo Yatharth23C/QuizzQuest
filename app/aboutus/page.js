@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import "../global.css";
-
+import NavBar from "../components/NavBar"
 const founders = [
   {
     name: "Yatharth N. Chawhan",
@@ -33,8 +33,9 @@ const founders = [
 ];
 
 export default function AboutUs() {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 to-black text-gray-200 p-6 flex flex-col items-center">
+  return (<>
+    <NavBar/>
+    <div className="min-h-screen bg-stone-600 text-gray-200 p-6 flex flex-col items-center">
       <h1 className="text-5xl font-bold text-yellow-400 mt-10 mb-4">About Us</h1>
       <p className="text-lg text-center max-w-2xl mb-10">
         We are a team of Electronics and Telecommunication graduates from WIT Solapur, dedicated to transforming education with interactive, engaging platforms. Our mission is to make learning accessible and enjoyable for everyone.
@@ -76,5 +77,6 @@ export default function AboutUs() {
         ))}
       </div>
     </div>
+  </>
   );
 }

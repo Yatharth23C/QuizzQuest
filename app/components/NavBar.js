@@ -1,15 +1,17 @@
 'use client';
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function NavBar() {
     const [isOpen, setIsOpen] = useState(false);
+    const [userProfilePic, setUserProfilePic] = useState(null);
     const router = useRouter();
-    
-    // Check if user is logged in and get their profile picture URL
-    const userProfilePic = localStorage.getItem("userProfilePic"); // Assuming the profile pic URL is stored in localStorage
-    const userName = localStorage.getItem("userName"); // Assuming the user name is also stored in localStorage
+
+    // Retrieve user profile picture and name from local storage
+    useEffect(() => {
+        setUserProfilePic(localStorage.getItem("userProfilePic"));
+    }, []);
 
     const ToggleMenu = () => {
         setIsOpen(!isOpen);
@@ -25,12 +27,12 @@ export default function NavBar() {
         router.push('/aboutus');
     };
     const HandleProfile = () => {
-        router.push('/profile');  // Navigate to profile page
+        router.push('/profile');
     };
 
     return (
-        <>
-            <div className="w-full flex items-center fixed top-0 left-0 h-16 bg-black text-white text-2xl z-50 px-6">
+        <div>
+            <div className="w-screen flex items-center sticky top-0  bg-black text-white text-2xl z-10 p-2">
                 <div className="flex-none">
                     <Image 
                         onClick={HandleHome} 
@@ -44,21 +46,18 @@ export default function NavBar() {
                 <div className="flex-none ml-10">
                     <button 
                         onClick={HandleRankings} 
-                        className="hover:cursor-pointer text-xl pt-3 pb-3 pr-4 pl-4 rounded-full text-black bg-yellow-500"
+                        className="hover:cursor-pointer text-xl pt-2 pb-2 pr-4 pl-4 rounded-full text-black bg-yellow-500"
                     >
                         Rankings
                     </button>
                 </div>
 
-                {/* Centering QuizQuest text */}
                 <div className="flex-grow flex justify-center font-semibold select-none text-2xl mr-[120px]">
                     QuizQuest
                 </div>
 
-                {/* Right-side Profile picture or hamburger menu */}
                 <div className="flex-none flex items-center space-x-4">
                     {userProfilePic ? (
-                        // Display user's profile picture
                         <div className="relative">
                             <Image 
                                 onClick={ToggleMenu} 
@@ -70,11 +69,11 @@ export default function NavBar() {
                             />
                         </div>
                     ) : (
-                        // Show hamburger menu if no profile picture
+                        // Render the hamburger menu if no profile picture
                         <Image 
                             onClick={ToggleMenu} 
                             className="hover:cursor-pointer" 
-                            src="/ham_menu.svg" 
+                            src="ham_menu.svg" 
                             alt="menu bar" 
                             width={30} 
                             height={30} 
@@ -95,6 +94,6 @@ export default function NavBar() {
                     Settings
                 </div>
             </div>
-        </>
+        </div>
     );
 }

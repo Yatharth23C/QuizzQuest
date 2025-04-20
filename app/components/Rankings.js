@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState } from 'react';
-
+import NavBar from './NavBar';
 async function fetchLeaderboard() {
   try {
     const response = await fetch('/api/auth/getRankings');
     const data = await response.json();
 
     if (data.success) {
-      console.log(data.leaderboard);  // Leaderboard data with email and scores
+      console.log(data.leaderboard); 
       return data.leaderboard;
     } else {
       console.error('Failed to fetch leaderboard:', data.message);
@@ -29,7 +29,8 @@ export default function Leaderboard() {
     loadLeaderboard();
   }, []);
 
-  return (
+  return (<>
+  <NavBar/>
     <div className="min-h-screen bg-gradient-to-b from-purple-800 to-black text-white flex flex-col items-center justify-center">
       <div className="bg-black bg-opacity-60 p-6 rounded-lg shadow-lg max-w-4xl w-full">
         <h2 className="text-4xl font-extrabold text-center text-purple-400 mb-6">Leaderboard</h2>
@@ -43,5 +44,6 @@ export default function Leaderboard() {
         </ul>
       </div>
     </div>
+    </>
   );
 }

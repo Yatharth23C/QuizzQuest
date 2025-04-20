@@ -28,6 +28,17 @@ export default function Component() {
 
   useEffect(() => {
     if (session) {
+      // Save the user's profile picture and name to localStorage
+      const profilePic = session.user?.image; // Adjust based on session data structure
+      const userName = session.user?.name;
+
+      if (profilePic) {
+        localStorage.setItem("userProfilePic", profilePic);
+      }
+      if (userName) {
+        localStorage.setItem("userName", userName);
+      }
+
       // Fetch user role
       const fetchRole = async () => {
         try {
@@ -50,28 +61,30 @@ export default function Component() {
       fetchRole();
     } else {
       setLoading(false);
+      localStorage.removeItem("userProfilePic"); 
+    localStorage.removeItem("userName");
     }
   }, [session]);
 
   return (
     <>  
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-gray-200 p-6 mainbg">
+      <div className="min-h-screen flex flex-col   bg-gray-900 text-gray-200  mainbg">
         <NavBar />
         
-        <div className="max-w-3xl text-center space-y-6 mt-12">
-          <h1 className="text-4xl font-bold text-yellow-400">Welcome to QuizQuest!</h1>
+        <div className="backdrop-blur-md  top-[0px] pt-10 flex flex-col space-y-6 items-center justify-center  w-full h-[92.2vh] rounded-xl  text-center">
+          <h1 className="text-[5rem] text-gray-900 font-bold ">Welcome to QuizQuest!</h1>
           
-          <p className="bg-gray-800 rounded-lg p-4 bg-transparent text-xl font-bold text-white">
+          <h2 className="bg-gray-800 rounded-lg d-4 bg-transparent text-xl font-bold text-gray-900">
             QuizQuest is an online platform to solve quizzes in a fun and interactive way.
-          </p>
+          </h2>
           
-          <p className="bg-gray-800 rounded-lg p-4 bg-transparent text-xl font-bold text-white">
+          <h2 className="bg-gray-800 rounded-lg p-4 bg-transparent text-xl font-bold text-gray-900">
             We offer a platform for teachers and students to engage in a healthy competitive environment.
-          </p>
+          </h2>
           
-          <p className="bg-gray-800 rounded-lg p-4 bg-transparent text-xl font-bold text-white">
+          <h2 className="bg-gray-800 rounded-lg p-4 bg-transparent text-xl font-bold text-gray-900">
             Our aim is to make quizzes more enjoyable, encouraging students to discover answers by playing a variety of games.
-          </p>
+          </h2>
 
           {!session ? (
             <button
@@ -84,7 +97,7 @@ export default function Component() {
             <>
               <button 
                 onClick={() => signOut()}
-                className="bg-red-600 relative right-2 text-gray-900 py-2 px-6 rounded-lg font-semibold bg-gradient-to-r from-red-600 to-orange-400 transition duration-200"
+                className="bg-white max-w-fit  text-black relative right-2 py-2 px-6 rounded-lg font-semibold  transition duration-200"
               >
                 Sign Out
               </button>
@@ -103,13 +116,13 @@ export default function Component() {
                 <div className="mt-4 space-x-4">
                   <button
                     onClick={handleCreateQuestion}
-                    className="bg-gradient-to-r from-blue-500 to-indigo-600 bg-blue-600 text-gray-900 py-2 px-6 rounded-lg font-semibold hover:bg-blue-500 transition duration-200"
+                    className="text-white bg-black   py-2 px-6 rounded-lg font-semibold  transition duration-200"
                   >
                     Create Questions
                   </button>
                   <button
                     onClick={handleViewQuestions}
-                    className="bg-gradient-to-r from-purple-500 to-indigo-600 bg-purple-600 text-gray-900 py-2 px-6 rounded-lg font-semibold hover:bg-purple-500 transition duration-200"
+                    className="bg-gradient-to-r from-yellow-500 to-white-600 bg-yellow-600 text-gray-900 py-2 px-6 rounded-lg font-semibold hover:bg-yellow-500 transition duration-200"
                   >
                     View Questions
                   </button>
@@ -118,10 +131,10 @@ export default function Component() {
 
               {/* Render Student-specific button */}
               {role === 'student' && (
-                <div className="mt-4">
+                <div className="mt-4 ">
                   <button
                     onClick={handleSolveQuestions}
-                    className="bg-indigo-600 text-gray-900 py-2 px-6 rounded-lg font-semibold hover:bg-indigo-500 transition duration-200"
+                    className="bg-white  text-gray-900 py-2 px-6  rounded-lg font-semibold  transition duration-200"
                   >
                     Solve Questions
                   </button>

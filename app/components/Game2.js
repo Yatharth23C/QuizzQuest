@@ -1,241 +1,285 @@
 'use client';
+
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import kaboom from 'kaboom';
 
-export default function Games() {
-    const canvasRef = useRef(null);
-    const holePositionsRef = useRef([]);
-    const [gameOver, setGameOver] = useState(false);
-    const [questionid, setQuestionid] = useState(null);
-    const [questionops, setQuestionops] = useState([]);
-    const [correctAnswer, setCorrectAnswer] = useState(null);
-    const [start, setStart] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(10);
+export default function MemoryQuizGame() {
+    const [question, setQuestion] = useState('');
+    const [questionId, setQuestionId] = useState('');
+    const [questionOptions, setQuestionOptions] = useState([]);
     const [resultMessage, setResultMessage] = useState('');
-    const [score, setScore] = useState(0);
-    const [activeOption, setActiveOption] = useState(null);
-    const [activeHole, setActiveHole] = useState(null);
+    const [showResult, setShowResult] = useState(false);
+    const [isCorrect, setIsCorrect] = useState(false);
+    const [score, setScore] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return Number(localStorage.getItem('score')) || 0;
+        }
+        return 0;
+    });
+    const kRef = useRef(null);
     const router = useRouter();
-    const animationRef = useRef(null);
 
-    const shownOptionsRef = useRef(new Set()); // Track shown options to ensure each is displayed at least once
+    useEffect(() => {
+        const storedQuestion = localStorage.getItem('current_Q_text');
+        const storedQuestionId = localStorage.getItem('current_Q_id');
+        const storedOptions = JSON.parse(localStorage.getItem('current_Q_ops')) || [];
 
-    // Function to randomly display an option
-    const showOption = () => {
-        if (gameOver || !questionops.length) return;
-
-        // Ensure each option is displayed at least once
-        let randomOption;
-        if (shownOptionsRef.current.size < questionops.length) {
-            // Select an option that hasn't been shown yet
-            const remainingOptions = questionops
-                .map((_, index) => index)
-                .filter(index => !shownOptionsRef.current.has(index));
-            randomOption = remainingOptions[Math.floor(Math.random() * remainingOptions.length)];
-            shownOptionsRef.current.add(randomOption);
-        } else {
-            // All options have been shown, so we can select any option at random
-            randomOption = Math.floor(Math.random() * questionops.length);
+        if (!storedQuestion || !storedQuestionId) {
+            router.push('/viewquestions');
+            return;
         }
 
-        const randomHole = Math.floor(Math.random() * holePositionsRef.current.length);
+        setQuestion(storedQuestion);
+        setQuestionId(storedQuestionId);
 
-        setActiveOption(randomOption);
-        setActiveHole(randomHole);
+        async function fetchOptions() {
+            try {
+                const response = await fetch('/api/auth/getsimilaroptions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: storedOptions }),
+                });
 
-        setTimeout(() => {
-            if (!gameOver) {
-                setActiveOption(null);
-                setActiveHole(null);
+                const data = await response.json();
+                if (data.success) {
+                    const mergedOptions = [...new Set([...storedOptions, ...data.options])];
+                    setQuestionOptions(mergedOptions);
+                } else {
+                    setQuestionOptions(storedOptions);
+                }
+            } catch (error) {
+                console.error('Error fetching options:', error);
+                setQuestionOptions(storedOptions);
             }
-        }, 1500);
-    };
+        }
+        fetchOptions();
+    }, [router]);
 
-    // Set up Game Objects and canvas
     useEffect(() => {
-        const canvas = canvasRef.current;
-        const c = canvas.getContext('2d');
-        canvas.width = innerWidth;
-        canvas.height = innerHeight;
+        // Redirect after showing result message
+        if (showResult) {
+            const timer = setTimeout(() => {
+                router.push('/viewquestions');
+            }, 2000);
 
-        holePositionsRef.current = [
-            { x: canvas.width / 4, y: canvas.height / 2 },
-            { x: canvas.width / 2, y: canvas.height / 2 },
-            { x: (3 * canvas.width) / 4, y: canvas.height / 2 },
-            { x: canvas.width / 2, y: canvas.height / 3 }
-        ];
+            return () => clearTimeout(timer);
+        }
+    }, [showResult, router]);
 
-        const drawHoles = () => {
-            c.fillStyle = '#1E1E1E';  // Dark gray for holes
-            holePositionsRef.current.forEach(({ x, y }) => {
-                c.beginPath();
-                c.ellipse(x, y, 50, 30, 0, 0, Math.PI * 2);
-                c.fill();
-            });
-        };
+    useEffect(() => {
+        if (questionOptions.length === 0) return;
 
-        const drawActiveOption = () => {
-            if (activeOption === null || activeHole === null) return;
-            const { x, y } = holePositionsRef.current[activeHole];
-
-            c.fillStyle = '#8A2BE2';  // Purple for active option
-            c.beginPath();
-            c.ellipse(x, y - 40, 50, 30, 0, 0, Math.PI * 2);
-            c.fill();
-
-            c.fillStyle = '#FFFF00';  // Yellow for text
-            c.font = '20px Arial';
-            c.textAlign = 'center';
-            c.fillText(questionops[activeOption], x, y - 35);
-        };
-
-        const animate = () => {
-            if (gameOver) return;
-
-            c.clearRect(0, 0, canvas.width, canvas.height);
-            drawHoles();
-            drawActiveOption();
-
-            c.fillStyle = '#FFFFFF';  // White for score and timer text
-            c.font = '20px Arial';
-            c.fillText(`Time Left: ${timeLeft}s | Score: ${score}`, 20, 30);
-
-            animationRef.current = requestAnimationFrame(animate);
-        };
-
-        animate();
-
-        return () => cancelAnimationFrame(animationRef.current);
-    }, [gameOver, questionops, activeOption, activeHole, timeLeft, score]);
-
-    // Handle Game Over and check answer logic
-    const clickHandler = async (e) => {
-        if (gameOver) return;
-    
-        const rect = canvasRef.current.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-    
-        if (activeHole !== null) {
-            const { x, y } = holePositionsRef.current[activeHole];
-            const distance = Math.sqrt((mouseX - x) ** 2 + (mouseY - (y - 40)) ** 2);
-    
-            const wasCorrect = activeOption === correctAnswer - 1;
-            setResultMessage(wasCorrect ? 'Correct Answer!' : 'Wrong Answer! Game Over');
-            
-            // Update score locally
-            if (wasCorrect) {
-                setScore(score + 1);
-                localStorage.setItem('score', score + 1); // Save score locally
+        // Cleanup previous game instance if it exists
+        if (kRef.current) {
+            try {
+                kRef.current.quit();
+            } catch (e) {
+                console.error("Error cleaning up kaboom:", e);
             }
-    
-            // Save answer result to the database
-            await fetch('/api/auth/recordAnswer', {
+            kRef.current = null;
+        }
+
+        // Create a new canvas element
+        const gameContainer = document.getElementById('gameContainer');
+        if (gameContainer) {
+            gameContainer.innerHTML = '';
+            const canvas = document.createElement('canvas');
+            canvas.id = 'gameCanvas';
+            canvas.className = 'absolute top-0 left-0 w-full h-full';
+            gameContainer.appendChild(canvas);
+        }
+
+        // Initialize Kaboom
+        kRef.current = kaboom({
+            global: false,
+            width: 1800,
+            height: 950,
+            canvas: document.getElementById('gameCanvas'),
+            background: [20, 20, 20],
+            debug: false
+        });
+
+        const k = kRef.current;
+
+        // Calculate the center of the screen
+        const centerX = k.width() / 2;
+        const centerY = k.height() / 2;
+
+        // Box dimensions
+        const boxWidth = 200;
+        const boxHeight = 100;
+        const boxSpacing = 50;
+
+        // Calculate grid layout based on number of options
+        const maxBoxesPerRow = 3;
+        const numOptions = Math.min(questionOptions.length, 9);
+        const numRows = Math.ceil(numOptions / maxBoxesPerRow);
+        const numCols = Math.min(numOptions, maxBoxesPerRow);
+
+        // Calculate total grid width and height
+        const gridWidth = (numCols * boxWidth) + ((numCols - 1) * boxSpacing);
+        const gridHeight = (numRows * boxHeight) + ((numRows - 1) * boxSpacing);
+
+        // Calculate starting position (top-left of grid)
+        const startX = centerX - (gridWidth / 2);
+        const startY = centerY - (gridHeight / 2);
+
+        const boxes = [];
+        const textLabels = [];
+
+        function flipCard(k, box, textLabel) {
+            if (box.isFlipping) return; // Prevent multiple flips
+            box.isFlipping = true;
+
+            // Hide the text label
+            if (textLabel) {
+                textLabel.hidden = true;
+            }
+
+            // Animate the box shrinking horizontally
+            k.tween(
+                box.scale.x,
+                0.1,
+                0.25,
+                (value) => {
+                    box.scale.x = value;
+                },
+                () => {
+                    // Change the box color to indicate it's flipped
+                    box.color = k.rgb(50, 50, 150);
+                    box.isFlipped = true;
+
+                    // Animate the box expanding back to its original size
+                    k.tween(
+                        box.scale.x,
+                        1,
+                        0.25,
+                        (value) => {
+                            box.scale.x = value;
+                        },
+                        () => {
+                            box.isFlipping = false;
+                        }
+                    );
+                }
+            );
+        }
+
+        // Create option boxes
+        questionOptions.slice(0, 9).forEach((option, index) => {
+            const row = Math.floor(index / maxBoxesPerRow);
+            const col = index % maxBoxesPerRow;
+
+            const x = startX + (col * (boxWidth + boxSpacing));
+            const y = startY + (row * (boxHeight + boxSpacing));
+
+            // Create box
+            const box = k.add([
+                k.rect(boxWidth, boxHeight),
+                k.pos(x, y),
+                k.color(0, 0, 0),
+                k.outline(4, k.rgb(255, 255, 255)),
+                k.area(),
+                k.scale(1, 1), // Add the scale component
+                "optionBox",
+                {
+                    optionValue: option,
+                    isFlipped: false,
+                    isFlipping: false,
+                    originalWidth: boxWidth
+                }
+            ]);
+
+            // Attach click handler to the box
+            box.onClick(() => {
+                if (!box.isFlipped && !box.isFlipping) {
+                    const textLabel = textLabels.find((t) => t.boxRef === box);
+                    flipCard(k, box, textLabel);
+                }
+                if (box.isFlipped) {
+                    verifyAnswer(box.optionValue);
+                }
+            });
+
+            boxes.push(box);
+
+            // Create text label
+            const label = k.add([
+                k.text(option, {
+                    size: 20,
+                    width: 180,
+                    align: "center"
+                }),
+                k.pos(x + boxWidth / 2, y + boxHeight / 2),
+                k.anchor("center"),
+                k.color(255, 255, 255),
+                "optionText",
+                {
+                    boxRef: box
+                }
+            ]);
+
+            textLabels.push(label);
+        });
+
+        // Show options for 4 seconds then flip all cards
+        k.wait(4, () => {
+            boxes.forEach((box, index) => {
+                const textLabel = textLabels.find(t => t.boxRef === box);
+                k.wait(index * 0.1, () => {
+                    flipCard(k, box, textLabel);
+                });
+            });
+        });
+
+    }, [questionOptions]);
+
+    const verifyAnswer = async (selectedAnswer) => {
+        try {
+            const response = await fetch('/api/auth/verifyanswer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    email: localStorage.getItem('userEmail'),
-                    questionId: questionid,
-                    isCorrect: wasCorrect,
+                    questionId,
+                    selectedAnswer,
                 }),
             });
-    
-            setGameOver(true);
-            router.push('/viewquestions');
+
+            const data = await response.json();
+
+            if (data.isCorrect) {
+                setIsCorrect(true);
+                setResultMessage('Correct!');
+                setShowResult(true);
+                setScore((prevScore) => {
+                    const newScore = prevScore + 1;
+                    localStorage.setItem('score', newScore);
+                    return newScore;
+                });
+            } else {
+                setIsCorrect(false);
+                setResultMessage('Wrong!');
+                setShowResult(true);
+            }
+        } catch (error) {
+            console.error('Error verifying answer:', error);
         }
     };
-    
-
-    // Countdown timer and periodic option display
-    useEffect(() => {
-        if (!start) return;
-
-        const timer = setInterval(() => {
-            setTimeLeft((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    setGameOver(true);
-                    setStart(false);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        const optionInterval = setInterval(showOption, 2000);
-
-        return () => {
-            clearInterval(timer);
-            clearInterval(optionInterval);
-        };
-    }, [start]);
-
-    // Load question data from localStorage and fetch correct answer
-    useEffect(() => {
-        const id = localStorage.getItem('current_Q_id');
-        const ops = JSON.parse(localStorage.getItem('current_Q_ops'));
-
-        if (id && ops) {
-            setQuestionid(id);
-            setQuestionops(ops);
-        } else {
-            router.push('/viewquestions');
-        }
-
-        const fetchCorrectAnswer = async () => {
-            try {
-                const response = await fetch('/api/auth/questions');
-                const data = await response.json();
-                const matchedQuestion = data.questions.find(q => q._id === id);
-                if (matchedQuestion) setCorrectAnswer(matchedQuestion.answer);
-            } catch (error) {
-                console.error('Error fetching correct answer:', error);
-            }
-        };
-
-        if (id) fetchCorrectAnswer();
-
-        const savedScore = localStorage.getItem('score');
-        if (savedScore) setScore(parseInt(savedScore, 10)); // Load score from localStorage
-    }, []);
 
     return (
-        <div style={{ position: 'relative', display: 'inline-block', backgroundColor: '#222222' }}>
-            <canvas
-                ref={canvasRef}
-                style={{ border: '1px solid #8A2BE2', boxShadow: '0px 0px 10px 3px rgba(138, 43, 226, 0.8)' }}
-                onClick={clickHandler}
-            >
-                Your browser does not support the canvas element.
-            </canvas>
-            {!start && !gameOver && (
-                <button
-                    onClick={() => {
-                        if (questionid && correctAnswer !== null) {
-                            setStart(true);
-                            setGameOver(false);
-                            setTimeLeft(10);
-                            setResultMessage('');
-                            shownOptionsRef.current.clear(); // Reset shown options
-                        }
-                    }}
-                    style={{
-                        position: 'absolute', top: '80%', left: '50%', transform: 'translate(-50%, -50%)',
-                        padding: '10px 20px', backgroundColor: '#8A2BE2', color: 'white', border: 'none',
-                        cursor: 'pointer', fontSize: '18px', borderRadius: '5px'
-                    }}
-                >
-                    Start
-                </button>
+        <div>
+            <div className='absolute text-2xl p-1 w-screen text-center z-10 top-0'>
+                <span className='bg-slate-300 p-2 rounded-md'>{question || 'Select the correct option'}</span>
+            </div>
+
+            {showResult && (
+                <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 text-6xl font-bold p-8 rounded-xl shadow-2xl animate-bounce ${isCorrect ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                    {resultMessage}
+                </div>
             )}
-            {gameOver && <div style={{
-                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '36px', fontWeight: 'bold', color: '#FF6347'  // Tomato red for game over
-            }}>{resultMessage}</div>}
-            {resultMessage && !gameOver && <div style={{
-                position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                fontSize: '24px', fontWeight: 'bold', color: '#00FF00'  // Lime green for correct
-            }}>{resultMessage}</div>}
+
+            <div id="gameContainer" className='absolute top-0 left-0 w-full h-full'></div>
         </div>
     );
 }
