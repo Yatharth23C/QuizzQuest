@@ -237,7 +237,8 @@ export default function MemoryQuizGame() {
 
     const verifyAnswer = async (selectedAnswer) => {
         try {
-            const response = await fetch('/api/auth/verifyanswer', {
+            // First verify the answer
+            const verifyResponse = await fetch('/api/auth/verifyanswer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -246,9 +247,21 @@ export default function MemoryQuizGame() {
                 }),
             });
 
-            const data = await response.json();
+            const verifyData = await verifyResponse.json();
+            const correct = verifyData.isCorrect;
 
-            if (data.isCorrect) {
+            // Then record the answer
+            await fetch('/api/auth/recordAnswer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId,
+                    isCorrect: correct,
+                }),
+            });
+
+            // Update UI based on result
+            if (correct) {
                 setIsCorrect(true);
                 setResultMessage('Correct!');
                 setShowResult(true);
@@ -263,7 +276,9 @@ export default function MemoryQuizGame() {
                 setShowResult(true);
             }
         } catch (error) {
-            console.error('Error verifying answer:', error);
+            console.error('Error processing answer:', error);
+            setResultMessage('Error processing answer');
+            setShowResult(true);
         }
     };
 

@@ -1,154 +1,163 @@
 'use client';
-
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import kaboom from 'kaboom';
 
-export default function MazeQuizGame() {
-    const [question, setQuestion] = useState('');
-    const [questionId, setQuestionId] = useState('');
-    const [questionOptions, setQuestionOptions] = useState([]);
-    const [correctAnswer, setCorrectAnswer] = useState('');
-    const router = useRouter();
-    const kRef = useRef(null);
+export default function FlappyQuizGame() {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState([]);
+  const [correctAnswer, setCorrectAnswer] = useState('');
+  const [birdPosition, setBirdPosition] = useState({ x: 10, y: 50 });
+  const [velocity, setVelocity] = useState(0);
+  const [answerPositions, setAnswerPositions] = useState([]);
+  const [gameStarted, setGameStarted] = useState(false);
+  const gameAreaRef = useRef(null);
+  const router = useRouter();
+  const answeredRef = useRef(false);
 
-    useEffect(() => {
-        const storedQuestion = localStorage.getItem('current_Q_text');
-        const storedQuestionId = localStorage.getItem('current_Q_id');
-        const storedOptions = JSON.parse(localStorage.getItem('current_Q_ops')) || [];
+  // Adjusted game constants for slower movement
+  const GRAVITY = 0.3;        // Reduced gravity for slower falling
+  const JUMP_FORCE = -5;       // Reduced jump force for lower jumps
+  const BIRD_SPEED = 1;        // Slower horizontal movement
+  const BIRD_ROTATION = 1.5;   // Reduced rotation sensitivity
 
-        if (!storedQuestion || !storedQuestionId) {
-            router.push('/viewquestions');
-            return;
-        }
+  // Load question and options (unchanged)
+  useEffect(() => {
+    const storedQuestion = localStorage.getItem('current_Q_text');
+    const storedOptions = JSON.parse(localStorage.getItem('current_Q_ops')) || [];
+    const correctAns = storedOptions[0];
 
-        setQuestion(storedQuestion);
-        setQuestionId(storedQuestionId);
-        setCorrectAnswer(storedOptions[0]); // Assume the first option is the correct answer
-        setQuestionOptions(storedOptions);
-    }, [router]);
+    if (!storedQuestion || !storedOptions.length) {
+      router.push('/viewquestions');
+      return;
+    }
 
-    useEffect(() => {
-        if (questionOptions.length === 0) return;
+    setQuestion(storedQuestion);
+    setOptions(storedOptions);
+    setCorrectAnswer(correctAns);
 
-        // Cleanup previous Kaboom instance
-        if (kRef.current) {
-            try {
-                kRef.current.quit();
-            } catch (e) {
-                console.error("Error cleaning up kaboom:", e);
-            }
-            kRef.current = null;
-        }
+    // Position answers in a column on the right side
+    const positions = storedOptions.map((_, index) => ({
+      x: 70 + (index % 2) * 15,
+      y: 20 + index * 20,
+    }));
+    setAnswerPositions(positions);
+  }, []);
 
-        // Create a new canvas element
-        const gameContainer = document.getElementById('gameContainer');
-        if (gameContainer) {
-            gameContainer.innerHTML = '';
-            const canvas = document.createElement('canvas');
-            canvas.id = 'gameCanvas';
-            canvas.className = 'absolute top-0 left-0 w-full h-full';
-            gameContainer.appendChild(canvas);
-        }
+  // Game loop with adjusted physics
+  useEffect(() => {
+    if (!gameStarted || answeredRef.current) return;
 
-        // Initialize Kaboom with dynamic canvas size
-        const canvasWidth = window.innerWidth;
-        const canvasHeight = window.innerHeight;
+    const gameLoop = setInterval(() => {
+      setVelocity(v => v + GRAVITY);
+      setBirdPosition(pos => ({
+        x: pos.x + BIRD_SPEED,
+        y: Math.max(0, Math.min(pos.y + velocity, 90)) // Keep bird within bounds
+      }));
 
-        kRef.current = kaboom({
-            global: true, // Enable global mode for kaboom functions
-            width: canvasWidth,
-            height: canvasHeight,
-            canvas: document.getElementById('gameCanvas'),
-            background: [0, 0, 0], // Set a default black background
-        });
+      // Collision detection
+      const birdRect = {
+        x: birdPosition.x,
+        y: birdPosition.y,
+        width: 5,
+        height: 5
+      };
 
-        const k = kRef.current;
+      answerPositions.forEach((pos, index) => {
+        const answerRect = {
+          x: pos.x,
+          y: pos.y,
+          width: 15,
+          height: 15
+        };
 
-        const paddle = k.add([
-            k.rect(100, 20),
-            k.pos(canvasWidth / 2 - 50, canvasHeight - 30),
-            k.color(0, 255, 0),
-            k.area(),
-            "paddle",
-        ]);
-
-        k.onKeyDown("left", () => {
-            paddle.move(-300, 0);
-        });
-
-        k.onKeyDown("right", () => {
-            paddle.move(300, 0);
-        });
-
-        questionOptions.forEach((option, index) => {
-            k.loop(1 + index * 0.5, () => {
-                const fallingAnswer = k.add([
-                    k.rect(80, 40),
-                    k.pos(k.rand(0, canvasWidth - 80), 0),
-                    k.color(option === correctAnswer ? 0 : 255, option === correctAnswer ? 255 : 0, 0),
-                    k.area(),
-                    "answer",
-                    { optionValue: option },
-                ]);
-
-                const answerText = k.add([
-                    k.text(option, { size: 16 }),
-                    k.pos(fallingAnswer.pos.x + 10, fallingAnswer.pos.y + 10), // Center text inside the box
-                    "text",
-                ]);
-
-                fallingAnswer.onUpdate(() => {
-                    fallingAnswer.move(0, 200); // Move the box downward
-                    answerText.pos = fallingAnswer.pos.add(10, 10); // Sync text position with the box
-                    if (fallingAnswer.pos.y > canvasHeight) {
-                        k.destroy(fallingAnswer);
-                        k.destroy(answerText);
-                    }
-                });
-
-                fallingAnswer.onCollide("paddle", () => {
-                    verifyAnswer(fallingAnswer.optionValue).catch((error) => {
-                        console.error('Error verifying answer:', error);
-                    });
-                    k.destroy(fallingAnswer);
-                    k.destroy(answerText);
-                });
+        if (
+          birdRect.x < answerRect.x + answerRect.width &&
+          birdRect.x + birdRect.width > answerRect.x &&
+          birdRect.y < answerRect.y + answerRect.height &&
+          birdRect.y + birdRect.height > answerRect.y
+        ) {
+          answeredRef.current = true;
+          const isCorrect = options[index] === correctAnswer;
+          
+          // First verify the answer
+          fetch('/api/auth/verifyanswer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              questionId: localStorage.getItem('current_Q_id'),
+              selectedAnswer: options[index] 
+            }),
+          })
+          .then(res => res.json())
+          .then(data => {
+            // Then record the answer
+            return fetch('/api/auth/recordAnswer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                questionId: localStorage.getItem('current_Q_id'),
+                isCorrect: data.isCorrect
+              }),
             });
-        });
-    }, [questionOptions]);
-
-    const verifyAnswer = async (selectedAnswer) => {
-        try {
-            const response = await fetch('/api/auth/verifyanswer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    questionId,
-                    selectedAnswer,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.isCorrect) {
-                alert("Correct!");
-            } else {
-                alert("Wrong!");
-            }
-
+          })
+          .then(() => {
             router.push('/viewquestions');
-        } catch (error) {
-            console.error('Error verifying answer:', error);
-        }
-    };
+          });
 
-    return (
-        <div>
-            <div className='absolute text-2xl p-1 w-screen text-center z-10 top-0'>
-                <span className='bg-slate-300 p-2 rounded-md'>{question || 'Navigate the maze to find the correct answer!'}</span>
-            </div>
-            <div id="gameContainer" className='absolute top-0 left-0 w-full h-full'></div>
+          clearInterval(gameLoop);
+        }
+      });
+
+      // Wrap around if bird goes off screen
+      if (birdPosition.x > 100) {
+        setBirdPosition({ x: 0, y: 50 });
+      }
+    }, 20); // Keep the same frame rate
+
+    return () => clearInterval(gameLoop);
+  }, [gameStarted, birdPosition, velocity, answerPositions]);
+
+  const handleJump = () => {
+    if (!gameStarted) setGameStarted(true);
+    setVelocity(JUMP_FORCE);
+  };
+
+  return (
+    <div className="w-screen h-screen bg-blue-200 flex flex-col items-center justify-center" onClick={handleJump}>
+      <h1 className="text-2xl mb-2">🐦 Flappy Quiz!</h1>
+      {!gameStarted && <p className="mb-4 text-lg">Tap to start!</p>}
+      <p className="mb-2 font-bold text-center max-w-md">{question}</p>
+
+      <div ref={gameAreaRef} className="relative w-full h-3/4 bg-blue-300 border-2 border-blue-500 rounded-lg overflow-hidden">
+        {/* Bird with adjusted size */}
+        <div 
+          className="absolute left-4 bg-yellow-400 w-6 h-6 rounded-full"
+          style={{
+            left: `${birdPosition.x}%`,
+            top: `${birdPosition.y}%`,
+            transform: `rotate(${velocity * BIRD_ROTATION}deg)`
+          }}
+        >
+          <div className="absolute right-0 top-1 w-3 h-1 bg-orange-500 rounded-full"></div>
         </div>
-    );
+
+        {/* Answers */}
+        {options.map((option, index) => {
+          const pos = answerPositions[index];
+          return pos ? (
+            <div
+              key={index}
+              className={`absolute flex items-center justify-center w-16 h-8 rounded-lg ${
+                option === correctAnswer ? 'bg-green-500' : 'bg-red-500'
+              }`}
+              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+            >
+              <span className="text-xs text-white">{option}</span>
+            </div>
+          ) : null;
+        })}
+      </div>
+      <p className="mt-4 text-sm">Tap to flap!</p>
+    </div>
+  );
 }

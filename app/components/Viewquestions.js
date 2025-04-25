@@ -52,7 +52,7 @@ export default function ViewQuestions() {
 
     return (<>
             <NavBar />
-        <div className="p-6 h-screen" style={{ backgroundColor: 'black', color: '#FFFFFF' }}>
+        <div className="p-6 min-h-screen" style={{ backgroundColor: 'black', color: '#FFFFFF' }}>
             <div style={{ paddingTop: '70px', paddingBottom: '20px', fontSize: '20px', color: '#FFFF00' }}>
                 <p style={{ textAlign: 'center' }}>Score: {score}</p>
             </div>
@@ -73,7 +73,7 @@ export default function ViewQuestions() {
                                 solvedQuestions.includes(question._id) ? 'opacity-50 cursor-not-allowed' : ''
                             }`}
                             style={{
-                                color: solvedQuestions.includes(question._id) ? 'blue' : 'yellow',
+                                color: solvedQuestions.includes(question._id) ? 'gray' : 'yellow',
                                 backgroundColor: 'transparent',
                                 border: 'none',
                                 cursor: solvedQuestions.includes(question._id) ? 'not-allowed' : 'pointer',

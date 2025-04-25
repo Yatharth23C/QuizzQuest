@@ -1,140 +1,169 @@
 'use client';
-
-import { useEffect, useRef, useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import kaboom from 'kaboom';
 
-export default function FetchAnswer() {
-    const [question, setQuestion] = useState('');
-    const [questionId, setQuestionId] = useState('');
-    const [questionOptions, setQuestionOptions] = useState([]);
-    const [resultMessage, setResultMessage] = useState('');
-    const [score, setScore] = useState(() => Number(localStorage.getItem('score')) || 0);
-    const kRef = useRef(null);
-    const router = useRouter();
-    let activeOption = null; // Track the currently displayed option
+export default function CatchTheAnswerGame() {
+  const router = useRouter();
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState([]);
+  const [correctAnswer, setCorrectAnswer] = useState('');
+  const [basketPos, setBasketPos] = useState(50);
+  const [fallingOptions, setFallingOptions] = useState([]);
+  const [score, setScore] = useState(0);
+  const gameAreaRef = useRef(null);
+  const answeredRef = useRef(false);
 
-    useEffect(() => {
-        const storedQuestion = localStorage.getItem('current_Q_text');
-        const storedOptions = JSON.parse(localStorage.getItem('current_Q_ops'));
-        const storedQuestionId = localStorage.getItem('current_Q_id');
+  // Load question
+  useEffect(() => {
+    const q = localStorage.getItem('current_Q_text');
+    const ops = JSON.parse(localStorage.getItem('current_Q_ops')) || [];
+    if (!q || !ops.length) {
+      router.push('/viewquestions');
+      return;
+    }
+    setQuestion(q);
+    setOptions(ops);
+    setCorrectAnswer(ops[0]);
+  }, []);
 
-        if (!storedQuestion || !storedOptions || !storedQuestionId) {
-            router.push('/viewquestions');
-            return;
-        }
+  // Spawn falling options
+  useEffect(() => {
+    if (!options.length || answeredRef.current) return;
 
-        setQuestion(storedQuestion);
-        setQuestionOptions(storedOptions);
-        setQuestionId(storedQuestionId);
-
-        if (!kRef.current) {
-            kRef.current = kaboom({
-                global: false,
-                width: 1255,
-                height: 755,
-                canvas: document.getElementById('gameCanvas'),
-            });
-
-            const k = kRef.current;
-            const minY = 100;
-            const maxY = 510;
-            k.setGravity(880);
-
-            const holes = [
-                k.add([k.rect(150, 150), k.color(0, 0, 0), k.pos(k.rand(50, 150), k.rand(minY, maxY)), k.body({ isStatic: true }), k.area()]),
-                k.add([k.rect(150, 150), k.color(0, 0, 0), k.pos(k.rand(400, 450), k.rand(minY, maxY)), k.body({ isStatic: true }), k.area()]),
-                k.add([k.rect(150, 150), k.color(0, 0, 0), k.pos(k.rand(600, 650), k.rand(minY, maxY)), k.body({ isStatic: true }), k.area()]),
-                k.add([k.rect(150, 150), k.color(0, 0, 0), k.pos(k.rand(800, 850), k.rand(minY, maxY)), k.body({ isStatic: true }), k.area()]),
-            ];
-
-            function showOptionInHole() {
-                if (activeOption) {
-                    setTimeout(() => {
-                        if (activeOption) {
-                            activeOption.destroy();
-                            activeOption = null;
-                        }
-                    }, 1500); // Wait 1.5 seconds before destroying the previous option
-                }
-
-                const randomHole = holes[Math.floor(Math.random() * holes.length)];
-                const randomOption = storedOptions[Math.floor(Math.random() * storedOptions.length)];
-
-                activeOption = k.add([
-                    k.text(randomOption, { size: 24 }),
-                    k.color(255, 255, 255),
-                    k.pos(randomHole.pos.x + 60, randomHole.pos.y + 60),
-                    k.area(),
-                    "option",
-                    { value: randomOption },
-                ]);
-
-                activeOption.onClick(() => {
-                    verifyAnswer(randomOption);
-                });
-            }
-
-            k.loop(2, showOptionInHole); // Spawns a new option every 2 seconds
-        }
-
-        return () => {
-            if (kRef.current) {
-                try {
-                    kRef.current.destroy();
-                    kRef.current.loop(0,()=>{})
-                } catch (error) {
-                    console.error("Error destroying Kaboom instance:", error);
-                }
-                kRef.current = null;
-            }
-        };
-    }, [router]);
-
-    const verifyAnswer = async (selectedAnswer) => {
-        console.log(`Selected: ${selectedAnswer}`);
-        const storedQuestionId = localStorage.getItem('current_Q_id');
-
-        if (!storedQuestionId) {
-            console.error("Error: Question ID is missing");
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/auth/verifyanswer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    questionId: storedQuestionId,
-                    selectedAnswer,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.isCorrect) {
-                setResultMessage('✅ Correct Answer!');
-                alert("Correct");
-                const newScore = score + 1;
-                setScore(newScore);
-                localStorage.setItem('score', newScore);
-                setTimeout(() => router.push('/viewquestions'), 10);
-            } else {
-                alert("Wrong");
-                setResultMessage('❌ Wrong Answer! Game Over.');
-                setTimeout(() => router.push('/viewquestions'), 2000);
-            }
-        } catch (error) {
-            console.error('Error verifying answer:', error);
-        }
+    const spawnOption = () => {
+      const option = options[Math.floor(Math.random() * options.length)];
+      setFallingOptions(prev => [...prev, {
+        option,
+        x: Math.random() * 80 + 10, // 10-90% width
+        y: 0,
+        id: Date.now() + Math.random(),
+        correct: option === correctAnswer
+      }]);
     };
 
-    return (
-        <div>
-            <div className='absolute text-2xl p-1 w-screen text-center z-10 top-0 '>
-                <span className='bg-slate-300 p-2 rounded-md'>{question} </span>
-            </div>
-            <canvas id="gameCanvas" className="absolute top-0 left-0"></canvas>
-        </div>
-    );
+    const interval = setInterval(spawnOption, 1500);
+    return () => clearInterval(interval);
+  }, [options]);
+
+  // Move falling options
+  useEffect(() => {
+    if (answeredRef.current) return;
+
+    const moveOptions = () => {
+      setFallingOptions(prev => 
+        prev.map(opt => ({ ...opt, y: opt.y + 2 }))
+          .filter(opt => {
+            // Check if caught in basket
+            if (opt.y > 80 && 
+                opt.x > basketPos - 10 && 
+                opt.x < basketPos + 10) {
+              
+              const isCorrect = opt.correct;
+              
+              // First verify the answer
+              fetch('/api/auth/verifyanswer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  questionId: localStorage.getItem('current_Q_id'),
+                  selectedAnswer: opt.option 
+                }),
+              })
+              .then(res => res.json())
+              .then(data => {
+                // Then record the answer
+                return fetch('/api/auth/recordAnswer', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    questionId: localStorage.getItem('current_Q_id'),
+                    isCorrect: data.isCorrect
+                  }),
+                });
+              })
+              .then(() => {
+                if (isCorrect) {
+                  setScore(s => s + 1);
+                } else {
+                  setScore(s => s - 1);
+                }
+                answeredRef.current = true;
+                router.push('/viewquestions');
+              })
+              .catch(error => {
+                console.error('Error processing answer:', error);
+              });
+
+              return false;
+            }
+            return opt.y < 100;
+          })
+      );
+    };
+
+    const gameLoop = setInterval(moveOptions, 50);
+    return () => clearInterval(gameLoop);
+  }, [basketPos]);
+
+  // Handle mouse/touch movement
+  useEffect(() => {
+    const handleMove = (clientX) => {
+      if (!gameAreaRef.current) return;
+      const rect = gameAreaRef.current.getBoundingClientRect();
+      const pos = ((clientX - rect.left) / rect.width) * 100;
+      setBasketPos(Math.max(10, Math.min(90, pos)));
+    };
+
+    const mouseMove = (e) => handleMove(e.clientX);
+    const touchMove = (e) => handleMove(e.touches[0].clientX);
+
+    window.addEventListener('mousemove', mouseMove);
+    window.addEventListener('touchmove', touchMove);
+    return () => {
+      window.removeEventListener('mousemove', mouseMove);
+      window.removeEventListener('touchmove', touchMove);
+    };
+  }, []);
+
+  return (
+    <div className="w-screen h-screen flex flex-col items-center bg-blue-100 p-4">
+      <h1 className="text-2xl mb-2">🧺 Catch the Answer!</h1>
+      <p className="mb-4 font-bold text-center">{question}</p>
+      <p className="mb-2">Score: {score}</p>
+
+      <div 
+        ref={gameAreaRef}
+        className="relative w-full h-3/4 bg-blue-200 border-2 border-blue-300 rounded-lg overflow-hidden"
+      >
+        {/* Falling options */}
+        {fallingOptions.map(opt => (
+          <div
+            key={opt.id}
+            className={`absolute w-12 h-12 flex items-center justify-center rounded-lg ${
+              opt.correct ? 'bg-green-500' : 'bg-red-500'
+            }`}
+            style={{
+              left: `${opt.x}%`,
+              top: `${opt.y}%`,
+              transition: 'top 0.05s linear'
+            }}
+          >
+            <span className="text-xs text-white">{opt.option}</span>
+          </div>
+        ))}
+
+        {/* Basket */}
+        <div 
+          className="absolute bottom-4 w-20 h-8 bg-brown-500"
+          style={{
+            left: `${basketPos - 10}%`,
+            background: 'linear-gradient(to right, #8B4513, #A0522D)',
+            clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)'
+          }}
+        ></div>
+      </div>
+
+      <p className="mt-4 text-sm">Move mouse/touch to control basket</p>
+    </div>
+  );
 }

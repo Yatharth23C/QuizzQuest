@@ -158,18 +158,19 @@ export default function ShootingQuizGame() {
         k.onCollide("bullet", "box", (bullet, box) => {
             bullet.destroy();
             box.destroy();
-            verifyAnswer(box.optionValue);
+            handleAnswer(box.optionValue);
         });
 
-        // End the game after 14 seconds
-        k.wait(20, () => {
+        // End the game after 20 seconds
+        k.wait(200, () => {
             router.push('/viewquestions');
         });
     }, [questionOptions]);
 
-    const verifyAnswer = async (selectedAnswer) => {
+    const handleAnswer = async (selectedAnswer) => {
         try {
-            const response = await fetch('/api/auth/verifyanswer', {
+            // First verify the answer
+            const verifyResponse = await fetch('/api/auth/verifyanswer', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -178,17 +179,31 @@ export default function ShootingQuizGame() {
                 }),
             });
 
-            const data = await response.json();
+            const verifyData = await verifyResponse.json();
+            const isCorrect = verifyData.isCorrect;
 
-            if (data.isCorrect) {
-                alert("Correct!");
+            // Then record the answer
+            await fetch('/api/auth/recordAnswer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId,
+                    isCorrect,
+                }),
+            });
+
+            // Show feedback to user
+            if (isCorrect) {
+                alert("Correct answer!");
             } else {
-                alert("Wrong!");
+                alert("Wrong answer!");
             }
 
+            // Redirect to view questions
             router.push('/viewquestions');
         } catch (error) {
-            console.error('Error verifying answer:', error);
+            console.error('Error processing answer:', error);
+            alert("An error occurred while processing your answer");
         }
     };
 
